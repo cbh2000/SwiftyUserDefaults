@@ -139,6 +139,7 @@ public extension NSUserDefaults {
             case nil: removeObjectForKey(key)
             default: assertionFailure("Invalid value type")
             }
+            saveAsync()
         }
     }
     
@@ -183,6 +184,27 @@ public class DefaultsKey<ValueType>: DefaultsKeys {
 extension NSUserDefaults {
     func set<T>(key: DefaultsKey<T>, _ value: Any?) {
         self[key._key] = value
+        saveAsync()
+    }
+}
+
+extension NSUserDefaults {
+    private struct SaveTimeout {
+        static let queue = dispatch_queue_create("SwiftyUserDefaults.SaveTimeout", DISPATCH_QUEUE_SERIAL)
+        static var pending = false
+    }
+
+    func saveAsync() {
+        // Save async automatically, but only once per loop
+        dispatch_sync(SaveTimeout.queue) {
+            if !SaveTimeout.pending {
+                SaveTimeout.pending = true
+                dispatch_async(SaveTimeout.queue) {
+                    SaveTimeout.pending = false
+                    self.synchronize()
+                }
+            }
+        }
     }
 }
 
@@ -197,6 +219,7 @@ extension NSUserDefaults {
     
     public func remove<T>(key: DefaultsKey<T>) {
         removeObjectForKey(key._key)
+        saveAsync()
     }
 }
 
